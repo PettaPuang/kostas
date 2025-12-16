@@ -41,99 +41,34 @@ export async function createUser(
       };
     }
 
-    // 4. Check jika mencoba membuat OWNER, ADMINISTRATOR, OWNER_GROUP, atau DEVELOPER dari gas station
-    // OWNER, ADMINISTRATOR, OWNER_GROUP, dan DEVELOPER hanya bisa dibuat dari admin panel (tanpa gasStationId)
+    // 4. Check jika mencoba membuat OWNER atau DEVELOPER dari gas station
+    // OWNER dan DEVELOPER hanya bisa dibuat dari admin panel (tanpa gasStationId)
     if (
       gasStationId &&
-      (validated.roleId === "OWNER" ||
-        validated.roleId === "ADMINISTRATOR" ||
-        validated.roleId === "OWNER_GROUP" ||
-        validated.roleId === "DEVELOPER")
+      (validated.roleId === "OWNER" || validated.roleId === "DEVELOPER")
     ) {
       return {
         success: false,
         message:
-          "Owner, Administrator, Owner Group, dan Developer hanya bisa dibuat dari admin panel",
+          "Owner dan Developer hanya bisa dibuat dari admin panel",
       };
     }
 
-    // 5. Fetch currentUser.ownerId untuk ADMINISTRATOR dan OWNER_GROUP
-    // Jika OWNER_GROUP dibuat dari admin tools (tanpa gasStationId), ownerId diambil dari currentUser.ownerId
-    const currentUserWithOwner = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { ownerId: true },
-    });
-    const currentUserOwnerId = currentUserWithOwner?.ownerId || null;
-
-    // 6. Check ownerId untuk OWNER_GROUP
-    // Jika dibuat dari gas station (ada gasStationId), harus pilih owner
-    // Jika dibuat dari admin tools (tidak ada gasStationId), gunakan currentUser.ownerId
-    if (validated.roleId === "OWNER_GROUP") {
-      if (gasStationId && !validated.ownerId) {
-        // Dari gas station, harus pilih owner
-        return {
-          success: false,
-          message: "Owner harus dipilih untuk Owner Group",
-        };
-      }
-      // Dari admin tools, akan gunakan currentUser.ownerId di bawah
-    }
-
-    // 7. Hash password
+    // 5. Hash password
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
-    // 8. Create user with profile in transaction
-    const newUser = await prisma.$transaction(async (tx) => {
-      // Create profile first
-      const profile = await tx.profile.create({
-        data: {
-          name: validated.name,
-          phone: validated.phone || null,
-          address: validated.address || null,
-          avatar: validated.avatar || null,
-          createdBy: { connect: { id: user.id } },
-        },
-      });
-
-      // Create user
-      const createdUser = await tx.user.create({
-        data: {
-          username: validated.username,
-          email: validated.email,
-          password: hashedPassword,
-          role: validated.roleId as any, // Enum Role
-          profileId: profile.id,
-          // Set ownerId:
-          // - ADMINISTRATOR: selalu dari currentUser.ownerId
-          // - OWNER_GROUP: dari validated.ownerId jika ada (dari gas station), atau currentUser.ownerId jika tidak ada (dari admin tools)
-          ...(validated.roleId === "ADMINISTRATOR" && currentUserOwnerId && {
-            ownerId: currentUserOwnerId,
-          }),
-          ...(validated.roleId === "OWNER_GROUP" && {
-            ownerId: validated.ownerId || currentUserOwnerId || undefined,
-          }),
-        },
-      });
-
-      // Auto-assign to gas station if provided
-      if (gasStationId) {
-        await tx.userGasStation.create({
-          data: {
-            userId: createdUser.id,
-            gasStationId,
-            status: "ACTIVE",
-            createdById: user.id,
-          },
-        });
-      }
-
-      return createdUser;
+    // 6. Create user
+    const newUser = await prisma.user.create({
+      data: {
+        email: validated.email,
+        password: hashedPassword,
+        role: validated.roleId as any, // Enum Role
+        ...(validated.displayName && { displayName: validated.displayName }),
+        ...(validated.ownerId && { ownerId: validated.ownerId }),
+      },
     });
 
     revalidatePath("/admin/users");
-    if (gasStationId) {
-      revalidatePath(`/gas-stations/${gasStationId}`);
-    }
     return { success: true, message: "User berhasil dibuat" };
   } catch (error) {
     console.error("Create user error:", error);
@@ -198,49 +133,28 @@ export async function updateUser(
     // 5. Get existing user
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
-      include: { profile: true },
     });
 
     if (!existingUser) {
       return { success: false, message: "User tidak ditemukan" };
     }
 
-    // 6. Update in transaction
-    await prisma.$transaction(async (tx) => {
-      // Update profile if exists
-      if (existingUser.profileId) {
-        await tx.profile.update({
-          where: { id: existingUser.profileId },
-          data: {
-            ...(input.name && { name: input.name }),
-            ...(input.phone !== undefined && { phone: input.phone || null }),
-            ...(input.address !== undefined && {
-              address: input.address || null,
-            }),
-            ...(input.avatar !== undefined && {
-              avatar: input.avatar || null,
-            }),
-            updatedBy: { connect: { id: user.id } },
-          },
-        });
-      }
+    // 6. Update user
+    const updateData: any = {
+      ...(input.email && { email: input.email }),
+      ...(input.roleId && { role: input.roleId as any }), // Enum Role
+      ...(input.displayName !== undefined && { displayName: input.displayName || null }),
+      ...(input.ownerId !== undefined && { ownerId: input.ownerId || null }),
+    };
 
-      // Update user
-      const updateData: any = {
-        ...(input.username && { username: input.username }),
-        ...(input.email && { email: input.email }),
-        ...(input.roleId && { role: input.roleId as any }), // Enum Role
-      };
+    // Hash password if provided
+    if (input.password) {
+      updateData.password = await bcrypt.hash(input.password, 10);
+    }
 
-      // Hash password if provided
-      if (input.password) {
-        updateData.password = await bcrypt.hash(input.password, 10);
-      }
-
-      await tx.user.update({
-        where: { id: userId },
-        data: updateData,
-      });
+    await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
     });
 
     revalidatePath("/admin/users");
@@ -251,6 +165,52 @@ export async function updateUser(
       return { success: false, message: error.message };
     }
     return { success: false, message: "Gagal mengupdate user" };
+  }
+}
+
+export async function getUserById(userId: string) {
+  try {
+    const { authorized } = await checkPermission([
+      "DEVELOPER",
+      "ADMINISTRATOR",
+      "OWNER",
+    ]);
+    if (!authorized) {
+      return { success: false, message: "Forbidden", data: null };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        displayName: true,
+        ownerId: true,
+      },
+    });
+
+    if (!user) {
+      return { success: false, message: "User not found", data: null };
+    }
+
+    return {
+      success: true,
+      message: "User found",
+      data: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        displayName: user.displayName,
+        ownerId: user.ownerId,
+      },
+    };
+  } catch (error) {
+    console.error("Get user error:", error);
+    if (error instanceof Error) {
+      return { success: false, message: error.message, data: null };
+    }
+    return { success: false, message: "Gagal mengambil data user", data: null };
   }
 }
 

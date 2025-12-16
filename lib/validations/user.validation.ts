@@ -40,68 +40,33 @@ export const updateProfileSchema = z.object({
   avatar: z.string().optional(),
 });
 
-// Combined User + Profile for creation (with password confirmation)
+// Combined User for creation (with password confirmation)
 export const createUserWithProfileSchema = z
   .object({
-    // User fields
-    username: z.string().min(3, "Username minimal 3 karakter").max(50),
+    // User fields sesuai schema
     email: z.string().email("Email tidak valid"),
     password: z.string().min(6, "Password minimal 6 karakter"),
     confirmPassword: z
       .string()
       .min(6, "Konfirmasi password minimal 6 karakter"),
     roleId: z.enum(
-      [
-        "DEVELOPER",
-        "ADMINISTRATOR",
-        "OWNER",
-        "OWNER_GROUP",
-        "MANAGER",
-        "OPERATOR",
-        "UNLOADER",
-        "FINANCE",
-        "ACCOUNTING",
-      ],
+      ["DEVELOPER", "OWNER", "OWNERGROUP", "STAFF", "FINANCE"],
       {
         message: "Role harus dipilih",
       }
     ),
-    ownerId: z.string().optional(), // Required untuk OWNER_GROUP
-
-    // Profile fields
-    name: z.string().min(1, "Nama harus diisi").max(100),
-    phone: z.string().optional(),
-    address: z.string().optional(),
-    avatar: z.string().optional(),
+    displayName: z.string().max(100).optional(),
+    ownerId: z.string().optional(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: "Password dan konfirmasi password tidak cocok",
     path: ["confirmPassword"],
-  })
-  .refine(
-    (data) => {
-      // Jika role OWNER_GROUP, ownerId harus diisi
-      // ADMINISTRATOR tidak perlu ownerId karena sudah default memiliki owner
-      if (data.roleId === "OWNER_GROUP") {
-        return !!data.ownerId && data.ownerId.length > 0;
-      }
-      return true;
-    },
-    {
-      message: "Owner harus dipilih untuk Owner Group",
-      path: ["ownerId"],
-    }
-  );
+  });
 
-// Combined User + Profile for update (password optional)
+// Combined User for update (password optional)
 export const updateUserWithProfileSchema = z
   .object({
-    // User fields
-    username: z
-      .string()
-      .min(3, "Username minimal 3 karakter")
-      .max(50)
-      .optional(),
+    // User fields sesuai schema
     email: z.string().email("Email tidak valid").optional(),
     password: z
       .union([z.string().min(6, "Password minimal 6 karakter"), z.literal("")])
@@ -114,14 +79,11 @@ export const updateUserWithProfileSchema = z
       ])
       .optional()
       .transform((val) => (val === "" ? undefined : val)),
-    roleId: z.string().min(1, "Role harus dipilih").optional(),
-    ownerId: z.string().optional(), // Required untuk OWNER_GROUP
-
-    // Profile fields
-    name: z.string().min(1, "Nama harus diisi").max(100).optional(),
-    phone: z.string().optional(),
-    address: z.string().optional(),
-    avatar: z.string().optional(),
+    roleId: z
+      .enum(["DEVELOPER", "OWNER", "OWNERGROUP", "STAFF", "FINANCE"])
+      .optional(),
+    displayName: z.string().max(100).optional(),
+    ownerId: z.string().optional(),
   })
   .refine(
     (data) => {
@@ -134,20 +96,6 @@ export const updateUserWithProfileSchema = z
     {
       message: "Password dan konfirmasi password tidak cocok",
       path: ["confirmPassword"],
-    }
-  )
-  .refine(
-    (data) => {
-      // Jika role OWNER_GROUP, ownerId harus diisi
-      // ADMINISTRATOR tidak perlu ownerId karena sudah default memiliki owner
-      if (data.roleId === "OWNER_GROUP") {
-        return !!data.ownerId && data.ownerId.length > 0;
-      }
-      return true;
-    },
-    {
-      message: "Owner harus dipilih untuk Owner Group",
-      path: ["ownerId"],
     }
   );
 

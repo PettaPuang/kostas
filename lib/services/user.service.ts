@@ -26,24 +26,35 @@ export class UserService {
   }
 
   static async findOwners() {
-    const owners = await prisma.user.findMany({
-      where: {
-        role: "OWNER",
-      },
-      select: {
-        id: true,
-        profile: {
-          select: {
-            name: true,
+    // Ambil semua Owner (untuk DEVELOPER bisa pilih semua Owner)
+    // Untuk display di sidebar, ambil Owner yang memiliki User dengan role OWNER
+    const owners = await prisma.owner.findMany({
+      include: {
+        users: {
+          where: {
+            role: "OWNER",
           },
+          select: {
+            id: true,
+            email: true,
+            displayName: true,
+          },
+          take: 1, // Ambil user pertama dengan role OWNER
         },
+      },
+      orderBy: {
+        name: "asc",
       },
     });
 
-    return owners.map((o) => ({
-      id: o.id,
-      name: o.profile?.name || "Unknown",
-    }));
+    return owners.map((owner) => {
+      const user = owner.users[0];
+      return {
+        id: owner.id, // Owner.id untuk Property
+        userId: user?.id || "", // User.id untuk edit user (kosong jika tidak ada User OWNER)
+        name: user?.displayName || user?.email.split("@")[0] || owner.name || "Unknown",
+      };
+    });
   }
 
   static async findById(id: string) {

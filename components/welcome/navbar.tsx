@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Menu, LogOut, Search } from "lucide-react";
 import { logoutAction } from "@/lib/actions/auth.actions";
-import { useRouter } from "next/navigation";
 
 type WelcomeNavbarProps = {
   userName: string;
@@ -17,11 +16,8 @@ type WelcomeNavbarProps = {
 };
 
 export function WelcomeNavbar({ userName, userRole }: WelcomeNavbarProps) {
-  const router = useRouter();
-
   const handleLogout = async () => {
     await logoutAction();
-    router.push("/login");
   };
 
   return (
@@ -32,25 +28,25 @@ export function WelcomeNavbar({ userName, userRole }: WelcomeNavbarProps) {
           <nav className="hidden md:flex items-center gap-6">
             <a
               href="#"
-              className="text-white hover:text-white text-sm transition-colors"
+              className="text-white hover:text-orange-500 text-sm transition-all font-medium hover:font-bold hover:scale-105"
             >
               ABOUT
             </a>
             <a
               href="#"
-              className="text-white hover:text-white text-sm transition-colors"
+              className="text-white hover:text-orange-500 text-sm transition-all font-medium hover:font-bold hover:scale-105"
             >
               PROPERTIES
             </a>
             <a
               href="#"
-              className="text-white hover:text-white text-sm transition-colors"
+              className="text-white hover:text-orange-500 text-sm transition-all font-medium hover:font-bold hover:scale-105"
             >
               ROOMS
             </a>
             <a
               href="#"
-              className="text-white hover:text-white text-sm transition-colors"
+              className="text-white hover:text-orange-500 text-sm transition-all font-medium hover:font-bold hover:scale-105"
             >
               DASHBOARD
             </a>
@@ -59,7 +55,7 @@ export function WelcomeNavbar({ userName, userRole }: WelcomeNavbarProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="h-9 w-9 text-white hover:text-white hover:bg-white/5 rounded-lg"
+              className="h-9 w-9 text-white hover:text-orange-500 rounded-lg transition-all hover:scale-110"
             >
               <Search className="h-4 w-4" />
             </Button>
@@ -68,7 +64,7 @@ export function WelcomeNavbar({ userName, userRole }: WelcomeNavbarProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-9 w-9 text-white hover:text-white hover:bg-white/5 rounded-lg"
+                  className="h-9 w-9 text-white hover:text-orange-500 rounded-lg transition-all hover:scale-110"
                 >
                   <Menu className="h-4 w-4" />
                 </Button>
@@ -79,7 +75,7 @@ export function WelcomeNavbar({ userName, userRole }: WelcomeNavbarProps) {
               >
                 <DropdownMenuItem
                   onClick={handleLogout}
-                  className="text-white hover:bg-white/10"
+                  className="text-white hover:text-orange-500 hover:font-bold transition-all"
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Logout

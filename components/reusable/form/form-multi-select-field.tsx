@@ -26,7 +26,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
-import { ProductBadge } from "@/components/reusable/badges/product-badge";
 import { cn } from "@/lib/utils";
 import type { FormControl as FormControlType } from "@/lib/utils/form-types";
 import { asFormControl } from "@/lib/utils/form-types";
@@ -81,18 +80,6 @@ export function FormMultiSelectField<T extends FieldValues>({
                           const option = options.find((opt) => opt.value === val);
                           if (!option) return null;
                           
-                          // Gunakan ProductBadge jika ada productName, otherwise gunakan Badge biasa
-                          if (option.productName) {
-                            return (
-                              <ProductBadge
-                                key={val}
-                                productName={option.productName}
-                                label={option.label}
-                                className="mr-1 mb-1"
-                              />
-                            );
-                          }
-                          
                           return (
                             <Badge
                               variant="secondary"
@@ -140,15 +127,7 @@ export function FormMultiSelectField<T extends FieldValues>({
                                 isSelected ? "opacity-100" : "opacity-0"
                               )}
                             />
-                            <div className="flex items-center gap-2 flex-1">
-                              <span>{option.label}</span>
-                              {option.productName && (
-                                <ProductBadge
-                                  productName={option.productName}
-                                  className="ml-auto"
-                                />
-                              )}
-                            </div>
+                            <span>{option.label}</span>
                           </CommandItem>
                         );
                       })}

@@ -26,8 +26,6 @@ import { User } from "lucide-react";
 import {
   FormInputField,
   FormSelectField,
-  FormTextareaField,
-  FormUploadField,
 } from "@/components/reusable/form";
 import {
   createUserWithProfileSchema,
@@ -55,15 +53,10 @@ type UserFormProps = {
   owners?: Array<{ id: string; name: string }>; // Untuk memilih owner saat membuat ADMINISTRATOR (jika bukan ownerOnly)
   editData?: {
     id: string;
-    username: string;
     email: string;
     role: string; // Role enum
-    profile: {
-      name: string;
-      phone: string | null;
-      address: string | null;
-      avatar: string | null;
-    } | null;
+    displayName?: string | null;
+    ownerId?: string | null;
   };
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -107,52 +100,48 @@ export function UserForm({
     };
   });
 
-  // Filter roles based on ownerOnly prop
-  // ownerOnly = true: hanya OWNER, ADMINISTRATOR, dan OWNER_GROUP (untuk admin panel)
-  // ownerOnly = false: semua role kecuali OWNER, ADMINISTRATOR, dan DEVELOPER (untuk gas station)
-  // staffOnly = true: hanya MANAGER, UNLOADER, OPERATOR, FINANCE, ACCOUNTING (untuk settings card di office tab)
+  // Filter roles based on ownerOnly prop sesuai schema Prisma
+  // ownerOnly = true: hanya OWNER dan OWNERGROUP (untuk admin panel)
+  // ownerOnly = false: semua role kecuali OWNER dan DEVELOPER (untuk gas station)
+  // staffOnly = true: hanya STAFF dan FINANCE (untuk settings card di office tab)
   let availableRoles = ownerOnly
     ? normalizedRoles.filter(
         (role) =>
-          role.value === "OWNER" ||
-          role.value === "ADMINISTRATOR" ||
-          role.value === "OWNER_GROUP"
+          role.value === "OWNER" || role.value === "OWNERGROUP"
       )
     : staffOnly
     ? normalizedRoles.filter(
         (role) =>
-          role.value === "MANAGER" ||
-          role.value === "UNLOADER" ||
-          role.value === "OPERATOR" ||
-          role.value === "FINANCE" ||
-          role.value === "ACCOUNTING"
+          role.value === "STAFF" || role.value === "FINANCE"
       )
     : normalizedRoles.filter(
         (role) =>
-          role.value !== "OWNER" &&
-          role.value !== "ADMINISTRATOR" &&
-          role.value !== "DEVELOPER"
+          role.value !== "OWNER" && role.value !== "DEVELOPER"
       );
+  
+  // Filter hanya role yang ada di schema Prisma
+  const schemaRoles = ["DEVELOPER", "OWNER", "OWNERGROUP", "STAFF", "FINANCE"];
+  availableRoles = availableRoles.filter((role) =>
+    schemaRoles.includes(role.value)
+  );
 
-  // Filter roles based on currentUserRole
-  // DEVELOPER: bisa membuat semua (OWNER, ADMINISTRATOR, OWNER_GROUP)
-  // ADMINISTRATOR: bisa membuat ADMINISTRATOR dan OWNER_GROUP, tapi tidak bisa OWNER
-  // OWNER_GROUP: tidak bisa membuat apa-apa (di-filter out semua)
+  // Filter roles based on currentUserRole sesuai schema
+  // DEVELOPER: bisa membuat semua (OWNER, OWNERGROUP, STAFF, FINANCE)
+  // OWNER: bisa membuat STAFF dan FINANCE
   // Jika staffOnly = true, skip filter currentUserRole karena sudah di-filter sebelumnya
   if (!staffOnly) {
-    if (currentUserRole === "ADMINISTRATOR") {
-      // ADMINISTRATOR bisa membuat ADMINISTRATOR dan OWNER_GROUP, tapi tidak OWNER
+    if (currentUserRole === "OWNER") {
+      // OWNER bisa membuat STAFF dan FINANCE
       availableRoles = availableRoles.filter(
-        (role) => role.value === "ADMINISTRATOR" || role.value === "OWNER_GROUP"
+        (role) => role.value === "STAFF" || role.value === "FINANCE"
       );
     } else if (currentUserRole !== "DEVELOPER") {
-      // Untuk role selain DEVELOPER dan ADMINISTRATOR (termasuk OWNER_GROUP), filter out semua
+      // Untuk role selain DEVELOPER dan OWNER, filter out semua
       availableRoles = availableRoles.filter(
         (role) =>
           role.value !== "DEVELOPER" &&
-          role.value !== "ADMINISTRATOR" &&
-          role.value !== "OWNER_GROUP" &&
-          role.value !== "OWNER"
+          role.value !== "OWNER" &&
+          role.value !== "OWNERGROUP"
       );
     }
     // DEVELOPER tidak perlu filter, bisa akses semua
@@ -160,19 +149,10 @@ export function UserForm({
 
   // Get owner role for default value
   const ownerRole = availableRoles.find((role) => role.value === "OWNER");
-  // Untuk ADMINISTRATOR, default ke ADMINISTRATOR jika OWNER tidak tersedia
   // Gunakan useMemo untuk menghindari perubahan reference setiap render
   const defaultRoleValue = useMemo(() => {
-    if (currentUserRole === "ADMINISTRATOR") {
-      return (
-        (
-          availableRoles.find((role) => role.value === "ADMINISTRATOR") ||
-          availableRoles[0]
-        )?.value || ""
-      );
-    }
     return ownerRole?.value || "";
-  }, [currentUserRole, availableRoles, ownerRole]);
+  }, [ownerRole]);
 
   // Watch roleId untuk show/hide ownerId field
   const form = useForm<CreateUserWithProfileInput | UpdateUserWithProfileInput>(
@@ -182,28 +162,20 @@ export function UserForm({
       ) as any,
       defaultValues: editData
         ? {
-            username: editData.username,
             email: editData.email,
-            roleId: editData.role, // role sekarang adalah enum string
-            ownerId: "",
-            name: editData.profile?.name || "",
-            phone: editData.profile?.phone || "",
-            address: editData.profile?.address || "",
-            avatar: editData.profile?.avatar || "",
+            roleId: editData.role,
+            displayName: editData.displayName || "",
+            ownerId: editData.ownerId || "",
             password: "",
             confirmPassword: "",
           }
         : {
-            username: "",
             email: "",
             password: "",
             confirmPassword: "",
             roleId: ownerOnly && defaultRoleValue ? defaultRoleValue : "",
+            displayName: "",
             ownerId: "",
-            name: "",
-            phone: "",
-            address: "",
-            avatar: "",
           },
     }
   );
@@ -215,44 +187,32 @@ export function UserForm({
     if (open) {
       if (editData) {
         form.reset({
-          username: editData.username,
           email: editData.email,
           roleId: editData.role,
-          ownerId: "",
-          name: editData.profile?.name || "",
-          phone: editData.profile?.phone || "",
-          address: editData.profile?.address || "",
-          avatar: editData.profile?.avatar || "",
+          displayName: editData.displayName || "",
+          ownerId: editData.ownerId || "",
           password: "",
           confirmPassword: "",
         });
       } else {
         form.reset({
-          username: "",
           email: "",
           password: "",
           confirmPassword: "",
           roleId: ownerOnly && defaultRoleValue ? defaultRoleValue : "",
+          displayName: "",
           ownerId: "",
-          name: "",
-          phone: "",
-          address: "",
-          avatar: "",
         });
       }
     } else {
       // Reset form ketika Sheet ditutup
       form.reset({
-        username: "",
         email: "",
         password: "",
         confirmPassword: "",
         roleId: ownerOnly && defaultRoleValue ? defaultRoleValue : "",
+        displayName: "",
         ownerId: "",
-        name: "",
-        phone: "",
-        address: "",
-        avatar: "",
       });
       setPendingData(null);
     }
@@ -286,18 +246,6 @@ export function UserForm({
           ? { ...pendingData, roleId: undefined } // Hapus roleId jika tidak boleh ubah role
           : pendingData;
 
-      // Jika ownerOnly=true dan role adalah OWNER_GROUP atau ADMINISTRATOR,
-      // set ownerId dari currentUserOwnerId (hanya untuk ADMINISTRATOR, bukan DEVELOPER)
-      // DEVELOPER harus pilih owner secara manual untuk OWNER_GROUP dan ADMINISTRATOR
-      if (ownerOnly && !editData && currentUserOwnerId && currentUserRole !== "DEVELOPER") {
-        const roleId = (submitData as CreateUserWithProfileInput).roleId;
-        if (roleId === "ADMINISTRATOR" || roleId === "OWNER_GROUP") {
-          submitData = {
-            ...submitData,
-            ownerId: currentUserOwnerId,
-          } as CreateUserWithProfileInput;
-        }
-      }
 
       // For owner creation, don't pass gasStationId
       const result = editData
@@ -312,18 +260,14 @@ export function UserForm({
         setConfirmDialogOpen(false);
         setOpen(false);
         form.reset({
-          username: "",
           email: "",
           password: "",
           confirmPassword: "",
           roleId: (ownerOnly && defaultRoleValue
             ? defaultRoleValue
             : "") as any,
+          displayName: "",
           ownerId: "",
-          name: "",
-          phone: "",
-          address: "",
-          avatar: "",
         });
         setPendingData(null);
         router.refresh();
@@ -341,9 +285,9 @@ export function UserForm({
   const roleOptions = availableRoles; // Sudah dalam format { value, label }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen} key={editData?.id || "new"}>
-      {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
-      <SheetContent className="p-2">
+      <Sheet open={open} onOpenChange={setOpen} key={editData?.id || "new"}>
+        {trigger && <SheetTrigger asChild>{trigger}</SheetTrigger>}
+        <SheetContent className="p-2 bottom-0 right-0 left-auto translate-x-0 translate-y-0" side="bottom">
         <SheetHeader className="px-2 pt-2">
           <SheetTitle className="text-base lg:text-xl">
             {editData
@@ -354,10 +298,10 @@ export function UserForm({
           </SheetTitle>
           <SheetDescription className="text-xs lg:text-sm">
             {editData
-              ? "Update user account and profile information"
+              ? "Update user account information"
               : ownerOnly
-              ? "Add a new owner account with profile information"
-              : "Add a new user with profile information"}
+              ? "Add a new owner account"
+              : "Add a new user"}
           </SheetDescription>
         </SheetHeader>
 
@@ -368,21 +312,13 @@ export function UserForm({
             autoComplete="off"
           >
             {/* Account Information */}
-            <div className="space-y-2 lg:space-y-3 rounded-lg border bg-card p-2 lg:p-4">
-              <div className="flex items-center gap-1.5 lg:gap-2 pb-1.5 lg:pb-2 border-b">
-                <User className="h-3 w-3 lg:h-4 lg:w-4 text-primary" />
-                <h3 className="font-semibold text-xs lg:text-sm">
+            <div className="space-y-2 lg:space-y-3 rounded-lg border border-orange-500/30 bg-black/20 backdrop-blur-sm p-2 lg:p-4">
+              <div className="flex items-center gap-1.5 lg:gap-2 pb-1.5 lg:pb-2 border-b border-orange-500/20">
+                <User className="h-3 w-3 lg:h-4 lg:w-4 text-orange-500" />
+                <h3 className="font-semibold text-xs lg:text-sm text-white">
                   Account Information
                 </h3>
               </div>
-
-              <FormInputField
-                control={form.control}
-                name="username"
-                label="Username"
-                placeholder="Enter username"
-                required
-              />
 
               <FormInputField
                 control={form.control}
@@ -391,6 +327,13 @@ export function UserForm({
                 type="email"
                 placeholder="Enter email"
                 required
+              />
+
+              <FormInputField
+                control={form.control}
+                name="displayName"
+                label="Display Name"
+                placeholder="Enter display name"
               />
 
               <FormSelectField
@@ -403,14 +346,9 @@ export function UserForm({
                 disabled={!allowRoleChange}
               />
 
-              {/* Owner selection untuk OWNER_GROUP dan ADMINISTRATOR:
-                  - DEVELOPER (ownerOnly): tampilkan untuk OWNER_GROUP dan ADMINISTRATOR (tidak punya ownerId)
-                  - ADMINISTRATOR (ownerOnly): tidak tampilkan (ownerId dari session)
-                  - Bukan ownerOnly: tampilkan untuk OWNER_GROUP */}
-              {((selectedRoleId === "OWNER_GROUP") || 
-                (selectedRoleId === "ADMINISTRATOR" && ownerOnly && currentUserRole === "DEVELOPER")) &&
-               owners.length > 0 && 
-               (!ownerOnly || currentUserRole === "DEVELOPER") && (
+              {/* Owner selection untuk OWNERGROUP */}
+              {selectedRoleId === "OWNERGROUP" &&
+               owners.length > 0 && (
                 <FormSelectField
                   control={form.control}
                   name="ownerId"
@@ -420,7 +358,6 @@ export function UserForm({
                     value: owner.id,
                     label: owner.name,
                   }))}
-                  required
                 />
               )}
 
@@ -453,64 +390,19 @@ export function UserForm({
               />
             </div>
 
-            {/* Profile Information */}
-            <div className="space-y-2 lg:space-y-3 rounded-lg border bg-card p-2 lg:p-4">
-              <div className="flex items-center gap-1.5 lg:gap-2 pb-1.5 lg:pb-2 border-b">
-                <User className="h-3 w-3 lg:h-4 lg:w-4 text-primary" />
-                <h3 className="font-semibold text-xs lg:text-sm">
-                  Profile Information
-                </h3>
-              </div>
-
-              <FormUploadField
-                control={form.control}
-                name="avatar"
-                label="Photo Profile"
-                maxSize={2}
-              />
-
-              <FormInputField
-                control={form.control}
-                name="name"
-                label="Full Name"
-                placeholder="Enter full name"
-                required
-              />
-
-              <FormInputField
-                control={form.control}
-                name="phone"
-                label="Phone Number"
-                type="tel"
-                placeholder="+62 812 3456 7890"
-              />
-
-              <FormTextareaField
-                control={form.control}
-                name="address"
-                label="Address"
-                placeholder="Enter full address"
-                rows={3}
-              />
-            </div>
-
             <div className="flex justify-end gap-1.5 lg:gap-3 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
                   form.reset({
-                    username: "",
                     email: "",
                     password: "",
                     confirmPassword: "",
                     roleId:
                       ownerOnly && defaultRoleValue ? defaultRoleValue : "",
+                    displayName: "",
                     ownerId: "",
-                    name: "",
-                    phone: "",
-                    address: "",
-                    avatar: "",
                   });
                   setPendingData(null);
                   setOpen(false);
@@ -524,7 +416,7 @@ export function UserForm({
                 type="submit"
                 disabled={loading}
                 size="sm"
-                className="text-xs lg:text-sm"
+                className="text-xs lg:text-sm bg-orange-500/90 hover:bg-orange-500 text-white"
               >
                 {loading
                   ? "Saving..."
@@ -539,14 +431,14 @@ export function UserForm({
 
       {/* Confirmation Dialog */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <DialogContent className="p-2 lg:p-6 max-w-[90vw] lg:max-w-md">
+        <DialogContent className="p-2 lg:p-6 max-w-[90vw] lg:max-w-md bg-black/60 backdrop-blur-md border-2 border-orange-500/50 text-white">
           <DialogHeader>
-            <DialogTitle className="text-base lg:text-xl">
+            <DialogTitle className="text-base lg:text-xl text-white">
               Konfirmasi {editData ? "Update" : "Create"} User
             </DialogTitle>
-            <DialogDescription className="text-xs lg:text-sm">
+            <DialogDescription className="text-xs lg:text-sm text-white/70">
               Yakin ingin {editData ? "mengupdate" : "membuat"} user{" "}
-              <span className="font-semibold">{pendingData?.username}</span>?
+              <span className="font-semibold text-white">{pendingData?.email}</span>?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-1.5 lg:gap-2">
@@ -555,7 +447,7 @@ export function UserForm({
               onClick={() => setConfirmDialogOpen(false)}
               disabled={loading}
               size="sm"
-              className="text-xs lg:text-sm"
+              className="text-xs lg:text-sm border-orange-500/50 text-white hover:bg-orange-500/20 hover:border-orange-500"
             >
               Batal
             </Button>
@@ -563,7 +455,7 @@ export function UserForm({
               onClick={handleConfirmSubmit}
               disabled={loading}
               size="sm"
-              className="text-xs lg:text-sm"
+              className="text-xs lg:text-sm bg-orange-500/90 hover:bg-orange-500 text-white"
             >
               {loading ? "Processing..." : "Ya, Lanjutkan"}
             </Button>

@@ -1,20 +1,34 @@
-import { ROLES, ROLE_LABELS } from "@/lib/utils/permissions";
-
 export type RoleOption = {
   value: string;
   label: string;
 };
 
+// Role sesuai schema Prisma
+const SCHEMA_ROLES = {
+  DEVELOPER: "DEVELOPER",
+  OWNER: "OWNER",
+  OWNERGROUP: "OWNERGROUP",
+  STAFF: "STAFF",
+  FINANCE: "FINANCE",
+} as const;
+
+const SCHEMA_ROLE_LABELS: Record<string, string> = {
+  DEVELOPER: "Developer",
+  OWNER: "Owner",
+  OWNERGROUP: "Owner Group",
+  STAFF: "Staff",
+  FINANCE: "Finance",
+};
+
 export class RoleService {
   /**
-   * Get all available roles (enum values)
-   * Tidak perlu query database karena Role sekarang enum
+   * Get all available roles (enum values sesuai schema Prisma)
    */
   static findAllActive(): RoleOption[] {
-    return Object.values(ROLES)
+    return Object.values(SCHEMA_ROLES)
       .map((role) => ({
         value: role,
-        label: ROLE_LABELS[role] || role,
+        label: SCHEMA_ROLE_LABELS[role] || role,
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }

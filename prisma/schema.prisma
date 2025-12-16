@@ -55,16 +55,17 @@ model Owner {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  role      Role
+  id          String   @id @default(cuid())
+  email       String   @unique
+  password    String
+  role        Role
+  displayName String?
 
-  ownerId   String?
-  owner     Owner?   @relation(fields: [ownerId], references: [id])
+  ownerId     String?
+  owner       Owner?   @relation(fields: [ownerId], references: [id])
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 // =======================================================
